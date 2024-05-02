@@ -29,11 +29,11 @@ app.use(passport.session());
 
 // initialize db from postgres
 const db = new pg.Client({
-  user : "postgres",
-  password : "abc123",
-  database : "phonebook",
-  host: "localhost",
-  port : "5432",
+  user : process.env.ACCESS_USER,
+  password : process.env.ACCESS_PASSWORD,
+  database : process.env.ACCESS_DATABASE,
+  host: process.env.ACCESS_HOST,
+  port : process.env.ACCESS_PORT,
 });
 
 // connect the db
@@ -51,12 +51,40 @@ app.get("/register", (req, res) => {
   res.render("register.ejs");
 });
 
-app.get("/phonebook", (req , res) => {
-    if (req.isAuthenticated()) {
-      res.render("phonebook.ejs");
-    } else {
-      res.redirect("/login");
+app.get("/phonebook", async (req, res) => {
+  console.log(req.user);
+
+  ////////////////UPDATED GET SECRETS ROUTE/////////////////
+  
+  if (req.isAuthenticated()) {
+    try {
+      const result = await db.query(
+        `SELECT names FROM users WHERE email = $1`,
+        [req.user.email]
+      );
+      console.log(result);
+      const bookName = result.rows[0].names;
+      if (secret) {
+        res.render("phonebook.ejs", { name: bookName });
+      } else {
+        res.render("phonebook.ejs", { name: "No Data currently" });
+      }
+    } catch (err) {
+      console.log(err);
     }
+  } else {
+    res.redirect("/login");
+  }
+});
+
+// to retrieve name and mobile number using get method
+app.get("/create" , (req, res) => {
+    if (req.isAuthenticated) {
+      res.render("create.ejs");
+    } else {
+      res.render("/login");
+    }
+
 });
 
 app.post(
