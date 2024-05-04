@@ -54,26 +54,47 @@ app.get("/register", (req, res) => {
 app.get("/phonebook", async (req, res) => {
   console.log(req.user);
 
-  ////////////////UPDATED GET SECRETS ROUTE/////////////////
-  
+  // Get or retrieve registered phonebook data
   if (req.isAuthenticated()) {
     try {
       const result = await db.query(
-        `SELECT names FROM users WHERE email = $1`,
-        [req.user.email]
+        `SELECT names, mobile_number, phonebook_email FROM users WHERE username = $1`,
+        [req.user.username]
       );
       console.log(result);
       const bookName = result.rows[0].names;
-      if (secret) {
-        res.render("phonebook.ejs", { name: bookName });
+      const mobileNo = result.rows[0].mobile_number;
+      const emailAddress = result.rows[0].phonebook_email;
+      if (bookName || mobileNo ||emailAddress) {
+        res.render("phonebook.ejs", { name: bookName, mobileNumber : mobileNo, email : emailAddress });
       } else {
-        res.render("phonebook.ejs", { name: "No Data currently" });
+        res.render("phonebook.ejs", { name: "", mobileNumber : "", email : "" });
       }
     } catch (err) {
       console.log(err);
     }
   } else {
     res.redirect("/login");
+  }
+});
+
+// create or update registered phonebook data
+app.post("/create", async function (req, res) {
+  const existingName = req.body.name;
+  const existingMobile = req.body.mobileNumber;
+  const existingEmail = req.body.phoneEmail;
+
+  console.log(req.user);
+  try {
+    await db.query(`UPDATE users SET names = $1, mobile_number = $2, phonebook_email = $3 WHERE username = $4`, [
+      existingName,
+      existingMobile,
+      existingEmail,
+      req.user.username,
+    ]);
+    res.redirect("/phonebook");
+  } catch (err) {
+    console.log(err);
   }
 });
 
@@ -103,31 +124,31 @@ app.get("/logout", (req, res) => {
 })
 
 app.post("/register", async (req, res) => {
-  const email = req.body.username;
+  const username = req.body.username;
   const password = req.body.password;
 
   try {
-    const checkResult = await db.query("SELECT * FROM users WHERE email = $1", [
-      email,
+    const checkResult = await db.query("SELECT * FROM users WHERE username = $1", [
+      username,
     ]);
 
     if (checkResult.rows.length > 0) {
-      res.send("Email already exists. Try logging in.");
-     
+      res.redirect("/login");
     } else {
-      // Hashing password using bcrypt node
-        bcrypt.hash(password, saltRounds, async(err, hash) => {
-          if (err) {
-            console.log("Error hashing password:", err);
-          } else {
-        // Store hash in your password DB.
-             console.log("Hashed Password:", hash);
-             await db.query(
-            "INSERT INTO users (email, password) VALUES ($1, $2)",
-            [email, hash]
+      bcrypt.hash(password, saltRounds, async (err, hash) => {
+        if (err) {
+          console.error("Error hashing password:", err);
+        } else {
+          const result = await db.query(
+            "INSERT INTO users (username, password) VALUES ($1, $2) RETURNING *",
+            [username, hash]
           );
-          res.render("phonebook.ejs");
-          }       
+          const user = result.rows[0];
+          req.login(user, (err) => {
+            console.log("success");
+            res.redirect("/phonebook");
+          });
+        }
       });
     }
   } catch (err) {
@@ -139,7 +160,7 @@ app.post("/register", async (req, res) => {
 passport.use(
   new Strategy(async function verify(username, password, cb) {
     try {
-      const result = await db.query("SELECT * FROM users WHERE email = $1 ", [
+      const result = await db.query("SELECT * FROM users WHERE username = $1 ", [
         username,
       ]);
       if (result.rows.length > 0) {
