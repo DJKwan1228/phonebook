@@ -58,15 +58,16 @@ app.get("/phonebook", async (req, res) => {
   if (req.isAuthenticated()) {
     try {
       const result = await db.query(
-        `SELECT names, mobile_number, phonebook_email FROM users WHERE username = $1`,
+        `SELECT username, names, mobile_number, phonebook_email FROM users WHERE username = $1`,
         [req.user.username]
       );
       console.log(result);
+      const userName = result.rows[0].username;
       const bookName = result.rows[0].names;
       const mobileNo = result.rows[0].mobile_number;
       const emailAddress = result.rows[0].phonebook_email;
       if (bookName || mobileNo ||emailAddress) {
-        res.render("phonebook.ejs", { name: bookName, mobileNumber : mobileNo, email : emailAddress });
+        res.render("phonebook.ejs", {user : userName, name: bookName, mobileNumber : mobileNo, email : emailAddress });
       } else {
         res.render("phonebook.ejs", { name: "", mobileNumber : "", email : "" });
       }
@@ -98,6 +99,58 @@ app.post("/create", async function (req, res) {
   }
 });
 
+// delete phonebook data
+app.get("/delete", async function (req, res) {
+  // retrieve registered phonebook data
+  if (req.isAuthenticated()) {
+    try {
+      const result = await db.query(
+        `SELECT username, names, mobile_number, phonebook_email FROM users WHERE username = $1`,
+        [req.user.username]
+      );
+      console.log(result);
+      const userName = result.rows[0].username;
+      const bookName = result.rows[0].names;
+      const mobileNo = result.rows[0].mobile_number;
+      const emailAddress = result.rows[0].phonebook_email;
+      if (bookName || mobileNo ||emailAddress) {
+        res.render("delete.ejs", {user : userName, name: bookName, mobileNumber : mobileNo, email : emailAddress });
+      } else {
+        res.render("delete.ejs", { name: "", mobileNumber : "", email : "" });
+      }
+    } catch (err) {
+      console.log(err);
+    }
+  } else {
+    res.redirect("/phonebook.ejs");
+  }
+});
+
+// confirm delete phonebook data
+app.post("/deleteRecord", async function (req, res) {
+  // retrieve registered phonebook data
+  if (req.isAuthenticated()) {
+    try {
+      const result = await db.query(
+        `UPDATE 
+        users
+        SET 
+        names = '', mobile_number = '', phonebook_email = '' 
+        WHERE 
+        username = $1`,
+        [req.user.username]
+      );
+      console.log(result);
+
+      res.redirect("/phonebook");
+    } catch (err) {
+      console.log(err);
+    }
+  } else {
+    res.redirect("/phonebook.ejs");
+  }
+});
+
 // to retrieve name and mobile number using get method
 app.get("/create" , (req, res) => {
     if (req.isAuthenticated) {
@@ -107,6 +160,23 @@ app.get("/create" , (req, res) => {
     }
 
 });
+
+app.get("/delete" , (req, res) => {
+  if (req.isAuthenticated) {
+    res.render("delete.ejs");
+  } else {
+    res.render("/login");
+  }
+
+});
+
+app.get('/cancel', (req, res) => { 
+  if (req.isAuthenticated) {
+    res.redirect("/phonebook");
+  } else {
+    res.render("/login");
+  }
+}); 
 
 app.post(
   "/login",
@@ -122,6 +192,7 @@ app.get("/logout", (req, res) => {
     res.redirect("/");
   })
 })
+
 
 app.post("/register", async (req, res) => {
   const username = req.body.username;
