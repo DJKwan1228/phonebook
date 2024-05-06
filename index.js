@@ -6,6 +6,7 @@ import passport from "passport";
 import { Strategy } from "passport-local";
 import session from "express-session";
 import env from "dotenv";
+import excel from "excel4node"
 
 const app = express();
 const port = 3000;
@@ -66,7 +67,7 @@ app.get("/phonebook", async (req, res) => {
       const bookName = result.rows[0].names;
       const mobileNo = result.rows[0].mobile_number;
       const emailAddress = result.rows[0].phonebook_email;
-      if (bookName || mobileNo ||emailAddress) {
+      if (bookName)  {
         res.render("phonebook.ejs", {user : userName, name: bookName, mobileNumber : mobileNo, email : emailAddress });
       } else {
         res.render("phonebook.ejs", { name: "", mobileNumber : "", email : "" });
@@ -135,7 +136,7 @@ app.post("/deleteRecord", async function (req, res) {
         `UPDATE 
         users
         SET 
-        names = '', mobile_number = '', phonebook_email = '' 
+        names = NULL, mobile_number = NULL, phonebook_email = NULL 
         WHERE 
         username = $1`,
         [req.user.username]
@@ -248,7 +249,7 @@ passport.use(
               return cb(null, user);
             } else {
               //Did not pass password check
-              return cb(null, false);
+              return cb("Incorrect password", false);
             }
           }
         });
@@ -260,6 +261,63 @@ passport.use(
     }
   })
 );
+
+// export data to excel 
+app.get("/excelExport", async(req, res) =>{
+
+  if (req.isAuthenticated()) {
+    try {
+      const result = await db.query(
+        `SELECT username, names, mobile_number, phonebook_email FROM users WHERE username = $1`,
+        [req.user.username]
+      );      
+      console.log(result);
+      const userName = result.rows[0].username;
+      const bookName = result.rows[0].names;
+      const mobileNo = result.rows[0].mobile_number;
+      const emailAddress = result.rows[0].phonebook_email;
+
+      const workbook = new excel.Workbook();
+      const worksheet = workbook.addWorksheet('Phone Book Entities');
+    
+      const headingColumnNames = [
+        "Username",
+        "Name",
+        "Email",
+        "Mobile",
+      ];
+
+      const resultData = [
+        userName,
+        bookName,
+        emailAddress,
+        mobileNo,
+      ];
+
+      //Write Column Title in Excel file
+      let headingColumnIndex = 1;
+      headingColumnNames.forEach(heading => {
+        worksheet.cell(1, headingColumnIndex++)
+          .string(heading)
+      });
+
+      //Write Data in Excel file
+      let headingColumnIndexTwo = 2;
+      resultData.forEach(heading => {
+        worksheet.cell(2, headingColumnIndexTwo++)
+          .string(heading)
+      });
+            
+      workbook.write("C:\\Excel\\" + userName + "_PhoneBook.xlsx");
+   
+    } catch (err) {
+      console.log(err);
+    }
+  } else {
+    res.redirect("/login");
+  }
+});
+
 
 passport.serializeUser((user, cb) => {
   cb(null, user);
